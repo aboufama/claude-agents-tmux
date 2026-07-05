@@ -40,7 +40,7 @@ claude() {
 
   # Inside tmux: this pane becomes an agent; a count adds sibling panes.
   if [[ -n "$TMUX" ]]; then
-    tmux set -w pane-border-status top
+    tmux set -w pane-border-status bottom
     tmux set -w pane-border-format \
       ' #(exec '"$hud"'/pane-status.sh "#{pane_id}" "#{pane_current_command}") '
     # Claim this window for the folder so a later `claude` from outside
@@ -99,7 +99,7 @@ claude() {
     ' #I #W #(exec '"$hud"'/tab-age.sh "#{@created}") '
   tmux set -w -t "$win" window-status-current-format \
     '#[bold] #I #W#{?window_zoomed_flag, +Z,} #(exec '"$hud"'/tab-age.sh "#{@created}") '
-  tmux set -w -t "$win" pane-border-status top
+  tmux set -w -t "$win" pane-border-status bottom
   tmux set -w -t "$win" pane-border-format \
     ' #(exec '"$hud"'/pane-status.sh "#{pane_id}" "#{pane_current_command}") '
 

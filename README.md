@@ -10,13 +10,15 @@ One persistent tmux session (`agents`) holds all your agentic work:
 - **Every pane has a color identity.** The pane border shows a procedural sigil (a color + glyph pair hashed from the pane id, stable and unique per split) plus the agent's model and effort level — nothing more, so borders stay quiet. Claude Code's own spinner line inside the pane is themed to the same color, so you always know which agent you're looking at.
 
 ```
-┌ ⣷◆ Fable 5 · high ────────────────┬ ⡪✦ Fable 5 · high ─────────────────┐
+┌───────────────────────────────────┬────────────────────────────────────┐
 │                                   │                                    │
 │  agent 1                          │  agent 2                           │
 │                                   │                                    │
-└───────────────────────────────────┴────────────────────────────────────┘
+└ ⣷◆ Fable 5 · high ────────────────┴ ⡪✦ Fable 5 · high ─────────────────┘
   1 game-engine 2d4h   2 website 3h   3 api 41m
 ```
+
+The HUD sits on each pane's *bottom* border, so it's always fully inside the terminal window — never clipped by the top edge or rounded corners.
 
 Agents run under `caffeinate`, so your Mac won't idle-sleep while they work, and they survive closed terminal windows, dropped SSH, and wifi blips — reattach by typing `claude` again in the same folder.
 
