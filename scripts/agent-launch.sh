@@ -15,6 +15,10 @@ if [ -z "$TMUX_PANE" ]; then
   exec $awake "$bin" "$@"
 fi
 
+# Mark this pane so that when the agent exits the pane survives: the
+# session's pane-died hook respawns it as a plain shell (see the wrapper).
+tmux set -p -t "$TMUX_PANE" remain-on-exit on 2>/dev/null
+
 h=$(printf '%s' "$TMUX_PANE" | cksum | cut -d' ' -f1)
 i=$(( h % 12 + 1 ))
 c=$(printf '%s\n'   81     203    114    178    141    208    44     205    156    220    75     168    | sed -n "${i}p")

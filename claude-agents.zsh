@@ -8,6 +8,9 @@
 #               decline (or answer anything but y) for stock tmux
 # One tab per folder, always: duplicate tabs for the same path get merged
 # back into the first one. Tabs show a running-age badge (amber >1d, red >3d).
+# Exiting an agent (Ctrl-C, /exit, crash) drops its pane to a normal shell
+# instead of closing it; `claude N` counts running agents and relaunches
+# idle shell panes in place before adding new splits.
 # The Claude Code folder-trust prompt is pre-accepted per folder, so a
 # burst of new panes never stalls on "Do you trust the files..." dialogs.
 # Every agent pane's border shows a procedural sigil + model · effort,
@@ -113,6 +116,12 @@ claude() {
   # agent-launch.sh matches the Claude Code spinner color to the pane's
   # sigil and runs the agent under caffeinate.
   local run="$hud/agent-launch.sh $bin $qargs"
+  # When an agent exits (Ctrl-C, /exit, crash) its pane drops to a normal
+  # shell instead of closing, so tabs are never locked to Claude. Agent
+  # panes carry pane-level remain-on-exit (set by agent-launch.sh); this
+  # hook turns the dead pane into a shell and clears the flag, so a plain
+  # `exit` in that shell still closes the pane.
+  local died='respawn-pane zsh ; set -p remain-on-exit off'
 
   # Inside tmux: when this window is (or can become) this folder's tab,
   # the current pane becomes an agent and a count adds sibling panes.
@@ -135,6 +144,7 @@ claude() {
       fi
     fi
     if [[ -n "$here" ]]; then
+      tmux set-hook -t "$sess" pane-died "$died"
       tmux set -w -t "$me" pane-border-status top
       tmux set -w -t "$me" pane-border-format \
         ' #(exec '"$hud"'/pane-status.sh "#{pane_id}" "#{pane_current_command}") '
@@ -143,13 +153,29 @@ claude() {
       [[ -z "$cur_path" ]] && tmux set -w -t "$me" @agent_path "$PWD"
       [[ -z "$(tmux show -w -t "$me" -v @created 2>/dev/null)" ]] && \
         tmux set -w -t "$me" @created "$(date +%s)"
-      local i
+      # `claude N` here = this pane plus N-1 siblings. Sibling panes
+      # sitting at a plain shell (exited agents) are relaunched in place
+      # before any new splits are added.
+      local i pid pcmd
+      local -a idle
+      while IFS=$'\t' read -r pid pcmd; do
+        [[ "$pid" == "$me" ]] && continue
+        case "$pcmd" in zsh|bash|sh|fish|-zsh|-bash) idle+=("$pid") ;; esac
+      done < <(tmux list-panes -t "$me" -F $'#{pane_id}\t#{pane_current_command}')
       for (( i = 2; i <= n; i++ )); do
-        tmux split-window -d -t "$me" -c "$PWD" "$run"
-        tmux select-layout -t "$me" tiled
+        if (( ${#idle} )); then
+          tmux respawn-pane -k -c "$PWD" -t "${idle[1]}" "$run"
+          idle=("${(@)idle[2,-1]}")
+        else
+          tmux split-window -d -t "$me" -c "$PWD" "$run"
+          tmux select-layout -t "$me" tiled
+        fi
       done
       [[ -n "${CLAUDE_TMUX_TEST:-}" ]] && return
       "$hud/agent-launch.sh" "$bin" "$@" "${extra[@]}"
+      # Back at the shell that launched the agent: this pane is a normal
+      # terminal again, so exiting it should close the pane, not respawn.
+      tmux set -p -t "$me" remain-on-exit off 2>/dev/null
       return
     fi
   fi
@@ -173,6 +199,7 @@ claude() {
     done < <(tmux list-windows -t "$sess" -F $'#{window_id}\t#{@agent_path}')
     [[ -z "$win" ]] && win="$(tmux new-window -t "$sess" -P -F '#{window_id}' -n "$tag" -c "$PWD" "$run")"
   fi
+  tmux set-hook -t "$sess" pane-died "$died"
 
   # One tab per folder: absorb any duplicate tabs for this path into $win.
   # (Duplicates can appear if two `claude`s race to create the tab.)
@@ -200,8 +227,22 @@ claude() {
   tmux set -w -t "$win" pane-border-format \
     ' #(exec '"$hud"'/pane-status.sh "#{pane_id}" "#{pane_current_command}") '
 
-  # Top up to N agent panes.
-  local have; have="$(tmux list-panes -t "$win" | wc -l | tr -d ' ')"
+  # Top up to N agents. Only actual agents count — panes sitting at a
+  # plain shell (exited agents) don't — so `claude 4` means four running
+  # Claudes. Idle shell panes are relaunched in place before splitting.
+  local have=0 pid pcmd
+  local -a idle
+  while IFS=$'\t' read -r pid pcmd; do
+    case "$pcmd" in
+      zsh|bash|sh|fish|-zsh|-bash) idle+=("$pid") ;;
+      *) (( have++ )) ;;
+    esac
+  done < <(tmux list-panes -t "$win" -F $'#{pane_id}\t#{pane_current_command}')
+  for pid in "${idle[@]}"; do
+    (( have >= n )) && break
+    tmux respawn-pane -k -c "$PWD" -t "$pid" "$run"
+    (( have++ ))
+  done
   while (( have < n )); do
     tmux split-window -d -t "$win" -c "$PWD" "$run"
     tmux select-layout -t "$win" tiled

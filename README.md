@@ -5,7 +5,8 @@ A tmux mission-control setup for running many [Claude Code](https://claude.com/c
 One persistent tmux session (`agents`) holds all your agentic work:
 
 - **Tab = folder, always exactly one.** Typing `claude` in any project opens (or rejoins) that folder's tab in the `agents` session — no matter where you type it: outside tmux, inside the agents session, or inside some other tmux session, you always land on that folder's tab. New folder → new tab. Same folder → same tab, same running agents. If duplicate tabs for one folder ever appear (e.g. two `claude`s racing), they're automatically merged back into one.
-- **Pane = agent.** `claude 4` gives the current folder's tab four agent panes in a tiled layout. Inside your folder's own tab, `claude 3` turns the current pane into an agent plus two sibling splits.
+- **Pane = agent.** `claude 4` gives the current folder's tab four *running* agents in a tiled layout. Inside your folder's own tab, `claude 3` turns the current pane into an agent plus two siblings. Idle shell panes are relaunched in place before any new splits are added.
+- **Exiting an agent never kills the pane.** Ctrl-C / `/exit` / a crash drops the pane to a normal shell in the same folder — type `claude` to relaunch, or `exit` to actually close the pane. Tabs are never locked to Claude.
 - **Tabs show their age.** Each tab's running time is rendered in the status bar — dim under a day, amber at 1–3 days, red past 3 days, so long-forgotten agents stand out.
 - **Every pane has a color identity.** The pane border shows a procedural sigil (a color + glyph pair hashed from the pane id, stable and unique per split) plus the agent's model, effort level, and cumulative session tokens (`· 12.4M tok`) — nothing more, so borders stay quiet. Claude Code's own spinner line inside the pane is themed to the same color, so you always know which agent you're looking at.
 - **No trust popups.** The wrapper pre-accepts Claude Code's "Do you trust the files in this folder?" dialog for the folder before spawning panes, so a burst of new agents doesn't stall on one prompt per pane. This covers the home directory too: Claude Code never saves an interactive acceptance for `~`, but it does honor a pre-seeded one, and the wrapper re-seeds on every launch.
@@ -40,7 +41,7 @@ Then open a new terminal (or `source ~/.zshrc`) and run `claude`.
 | Command | Effect |
 |---|---|
 | `claude` | Open/rejoin the `agents` session at this folder's tab |
-| `claude 4` | Ensure this folder's tab has 4 agent panes |
+| `claude 4` | Ensure this folder's tab has 4 running agents |
 | `claude` (in this folder's tab) | Current pane becomes an agent |
 | `claude 3` (in this folder's tab) | Current pane becomes an agent + 2 sibling splits |
 | `claude` (any other tmux window/session) | Jumps to this folder's tab, creating it if needed |
