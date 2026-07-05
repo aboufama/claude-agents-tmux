@@ -20,10 +20,6 @@ One persistent tmux session (`agents`) holds all your agentic work:
 
 Agents run under `caffeinate`, so your Mac won't idle-sleep while they work, and they survive closed terminal windows, dropped SSH, and wifi blips — reattach by typing `claude` again in the same folder.
 
-## How the HUD works
-
-Claude Code's `statusLine` hook runs `scripts/statusline.sh` on every status update. The script renders the in-app status line *and* writes a small state file keyed by `$TMUX_PANE`. tmux's `pane-border-format` runs `scripts/pane-status.sh` once per second per visible pane, which reads that state file: model and effort come straight from the hook payload (with a fallback to `~/.claude/settings.json`), and "working" simply means the state file was touched within the last few seconds.
-
 ## Install
 
 ```sh
@@ -60,11 +56,3 @@ Handy tmux keys: `Ctrl-b z` zoom a pane full-screen, `Ctrl-b d` detach (agents k
 - tmux ≥ 3.2, zsh, macOS (`caffeinate` is macOS-only — on Linux, remove it from `claude-agents.zsh` or swap in `systemd-inhibit`).
 - **The wrapper auto-appends `--dangerously-skip-permissions` to interactive agents.** That is the point of the setup — unattended agents that never stall on a prompt — but it means agents run without permission guardrails. Remove the `extra=(--dangerously-skip-permissions)` line in `claude-agents.zsh` if you don't want that.
 - To survive a closed laptop lid you additionally need `sudo pmset -a disablesleep 1`.
-
-## Files
-
-- `claude-agents.zsh` — the `claude` wrapper function
-- `scripts/statusline.sh` — Claude Code statusLine hook; feeds per-pane state files
-- `scripts/pane-status.sh` — renders each pane's border HUD
-- `scripts/tab-age.sh` — renders each tab's age badge
-- `install.sh` — copies everything into place
