@@ -45,7 +45,12 @@ claude() {
     [[ "$rmode" == "docker" ]] && \
       rcmd="docker exec -it claude-agents zsh -ilc 'mkdir -p ~/work/$rtag && cd ~/work/$rtag && claude $n'"
     if [[ -n "${CLAUDE_TMUX_TEST:-}" ]]; then print -r -- "ssh -t $rhost $rcmd"; return; fi
-    ssh -t "$rhost" "$rcmd"; return
+    # Only go remote if the host answers quickly; otherwise fall back to
+    # a local session so `claude` always opens something.
+    if ssh -o BatchMode=yes -o ConnectTimeout=3 "$rhost" true 2>/dev/null; then
+      ssh -t "$rhost" "$rcmd"; return
+    fi
+    print -u2 "claude-agents: remote $rhost unreachable — opening local session"
   fi
 
   local -a extra
@@ -87,6 +92,10 @@ claude() {
     win="$(tmux new-session -d -P -F '#{window_id}' -x 250 -y 80 -s "$sess" -n "$tag" -c "$PWD" "$run")"
     tmux set -t "$sess" status-interval 1
     tmux set -t "$sess" mouse on
+    # Sessions living on a remote host (ssh or the cloud/ container) tag
+    # themselves next to the session name in the status bar.
+    [[ -n "${SSH_CONNECTION:-}" || -f /.dockerenv ]] && \
+      tmux set -t "$sess" status-left "#[bold,fg=colour114] #S #[default]#[fg=colour178][remote]#[default] "
   else
     # Same folder → same tab: find it by the path recorded on the window.
     while IFS= read -r line; do

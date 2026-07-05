@@ -10,15 +10,13 @@ One persistent tmux session (`agents`) holds all your agentic work:
 - **Every pane has a color identity.** The pane border shows a procedural sigil (a color + glyph pair hashed from the pane id, stable and unique per split) plus the agent's model and effort level — nothing more, so borders stay quiet. Claude Code's own spinner line inside the pane is themed to the same color, so you always know which agent you're looking at.
 
 ```
-  ⣷◆ Fable 5 · high                 │  ⡪✦ Fable 5 · high
+┌ ⣷◆ Fable 5 · high ────────────────┬ ⡪✦ Fable 5 · high ─────────────────┐
 │                                   │                                    │
 │  agent 1                          │  agent 2                           │
 │                                   │                                    │
 └───────────────────────────────────┴────────────────────────────────────┘
   1 game-engine 2d4h   2 website 3h   3 api 41m
 ```
-
-Each label sits on its own quiet row at the top of its pane — inside the window, not embedded in a ─── border line — so nothing ever runs through or gets clipped by the frame.
 
 Agents run under `caffeinate`, so your Mac won't idle-sleep while they work, and they survive closed terminal windows, dropped SSH, and wifi blips — reattach by typing `claude` again in the same folder.
 
@@ -58,7 +56,9 @@ Point the wrapper at your host once:
 echo 'user@your-host' > ~/.claude/agents-tmux/remote
 ```
 
-From then on, `claude` in any local folder opens that folder's tab in the **remote** agents session over SSH (the local folder *name* maps to `~/work/<name>` on the host — keep your repos cloned there). `claude 3` works the same way. Wifi drop = tmux detach on the server; nothing dies. `CLAUDE_AGENTS_LOCAL=1 claude` forces a local session when you want one.
+From then on, **remote is the default**: `claude` in any local folder opens that folder's tab in the remote agents session over SSH (the local folder *name* maps to `~/work/<name>` on the host — keep your repos cloned there). `claude 3` works the same way. Wifi drop = tmux detach on the server; nothing dies. The remote session marks itself with an amber `[remote]` tag next to the session name in the status bar, so you always know which side you're on.
+
+If the host doesn't answer within 3 seconds, `claude` prints a notice and opens a local session instead — it always opens *something*. `CLAUDE_AGENTS_LOCAL=1 claude` forces a local session on purpose.
 
 ### Host option A — bare VPS (simplest)
 
