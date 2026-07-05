@@ -1,12 +1,58 @@
 # >>> claude-agents: one tmux session for everything; tab = folder; panes = agents >>>
 # `claude`    → open (or rejoin) the "agents" session at this folder's tab
 # `claude 3`  → this folder's tab has 3 agent panes (adds splits as needed)
-# Inside tmux → the current pane becomes an agent; `claude 3` adds 2 siblings
+# Inside tmux → in this folder's tab the current pane becomes an agent
+#               (`claude 3` adds 2 siblings); anywhere else it routes to
+#               the folder's own tab, creating it if needed
+# `tmux`      → bare, outside tmux: offers to jump to the agents manager;
+#               decline (or answer anything but y) for stock tmux
 # One tab per folder, always: duplicate tabs for the same path get merged
 # back into the first one. Tabs show a running-age badge (amber >1d, red >3d).
+# The Claude Code folder-trust prompt is pre-accepted per folder, so a
+# burst of new panes never stalls on "Do you trust the files..." dialogs.
 # Every agent pane's border shows a procedural sigil + model · effort,
 # fed by the Claude Code statusLine hook (~/.claude/agents-tmux/).
 # Agents run under caffeinate and survive closed terminals / wifi drops.
+
+# Pre-accept Claude Code's "Do you trust the files in this folder?" dialog
+# for a folder by recording the acceptance in ~/.claude.json up front — the
+# same projects.<path>.hasTrustDialogAccepted key the dialog itself writes.
+# (State-file edit, not a supported API.) Claude Code never saves an
+# interactive acceptance for $HOME itself but honors a pre-seeded one, so
+# re-seeding on every launch keeps even home-directory panes prompt-free.
+_claude_agents_trust() {
+  emulate -L zsh
+  local cfg="$HOME/.claude.json" dir="$1" tmp
+  [[ -n "${CLAUDE_TMUX_TEST:-}" ]] && cfg="${CLAUDE_TMUX_TRUST_FILE:-}"
+  [[ -n "$cfg" && -r "$cfg" ]] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  jq -e --arg p "$dir" '.projects[$p].hasTrustDialogAccepted == true' \
+    "$cfg" >/dev/null 2>&1 && return 0
+  tmp="$cfg.agents-tmux.$$"
+  if jq --arg p "$dir" \
+       '.projects[$p] = (.projects[$p] // {}) + {hasTrustDialogAccepted: true}' \
+       "$cfg" > "$tmp" 2>/dev/null && [[ -s "$tmp" ]]; then
+    command mv -f "$tmp" "$cfg"
+  else
+    command rm -f "$tmp"
+  fi
+}
+
+# Bare `tmux` outside tmux: offer to jump straight to the agents manager;
+# any answer other than y falls through to stock tmux behavior.
+tmux() {
+  emulate -L zsh
+  if [[ $# -eq 0 && -z "$TMUX" && -t 0 && -t 1 ]]; then
+    local sess="${CLAUDE_TMUX_SESSION:-agents}" reply=""
+    if command tmux has-session -t "=$sess" 2>/dev/null; then
+      read -q "reply?tmux: open the agents manager? [y/N] "
+      print
+      [[ "$reply" == [yY] ]] && { command tmux attach -t "=$sess"; return }
+    fi
+  fi
+  command tmux "$@"
+}
+
 claude() {
   emulate -L zsh
   local bin
@@ -53,37 +99,61 @@ claude() {
     print -u2 "claude-agents: remote $rhost unreachable — opening local session"
   fi
 
+  local hud="$HOME/.claude/agents-tmux"
+  local sess="${CLAUDE_TMUX_SESSION:-agents}"
+  local tag="${${PWD:t}//[^A-Za-z0-9_-]/-}"
+
+  # Pre-accept the folder-trust dialog so a burst of new panes doesn't
+  # stall on one "Do you trust the files in this folder?" prompt each.
+  _claude_agents_trust "$PWD"
+
   local -a extra
   [[ " $* " != *" --dangerously-skip-permissions "* ]] && extra=(--dangerously-skip-permissions)
   local -a qargs; qargs=("${(q)@}" "${(q)extra[@]}")
-  local hud="$HOME/.claude/agents-tmux"
   # agent-launch.sh matches the Claude Code spinner color to the pane's
   # sigil and runs the agent under caffeinate.
   local run="$hud/agent-launch.sh $bin $qargs"
 
-  # Inside tmux: this pane becomes an agent; a count adds sibling panes.
-  if [[ -n "$TMUX" ]]; then
-    tmux set -w pane-border-status top
-    tmux set -w pane-border-format \
-      ' #(exec '"$hud"'/pane-status.sh "#{pane_id}" "#{pane_current_command}") '
-    # Claim this window for the folder so a later `claude` from outside
-    # rejoins this tab instead of opening a duplicate.
-    [[ -z "$(tmux show -w -v @agent_path 2>/dev/null)" ]] && \
-      tmux set -w @agent_path "$PWD"
-    [[ -z "$(tmux show -w -v @created 2>/dev/null)" ]] && \
-      tmux set -w @created "$(date +%s)"
-    local i
-    for (( i = 2; i <= n; i++ )); do
-      tmux split-window -d -c "$PWD" "$run"
-      tmux select-layout tiled
-    done
-    [[ -n "${CLAUDE_TMUX_TEST:-}" ]] && return
-    "$hud/agent-launch.sh" "$bin" "$@" "${extra[@]}"
-    return
+  # Inside tmux: when this window is (or can become) this folder's tab,
+  # the current pane becomes an agent and a count adds sibling panes.
+  # From any other window or session, fall through and route to the
+  # folder's own tab — one tab per folder, wherever you typed `claude`.
+  if [[ -n "$TMUX" && -n "${TMUX_PANE:-}" ]]; then
+    # Target this pane explicitly everywhere: without -t, tmux resolves
+    # window commands against the session's *active* window, which is
+    # only coincidentally the one this shell lives in.
+    local me="$TMUX_PANE" here="" cur_path="" owner="" tline
+    if [[ "$(command tmux display -t "$TMUX_PANE" -p '#{session_name}')" == "$sess" ]]; then
+      cur_path="$(tmux show -w -t "$me" -v @agent_path 2>/dev/null)"
+      if [[ "$cur_path" == "$PWD" ]]; then here=1
+      elif [[ -z "$cur_path" ]]; then
+        # Unclaimed window: claim it, unless another tab already owns $PWD.
+        while IFS= read -r tline; do
+          [[ "${tline#*$'\t'}" == "$PWD" ]] && { owner="${tline%%$'\t'*}"; break }
+        done < <(tmux list-windows -t "$sess" -F $'#{window_id}\t#{@agent_path}')
+        [[ -z "$owner" ]] && here=1
+      fi
+    fi
+    if [[ -n "$here" ]]; then
+      tmux set -w -t "$me" pane-border-status top
+      tmux set -w -t "$me" pane-border-format \
+        ' #(exec '"$hud"'/pane-status.sh "#{pane_id}" "#{pane_current_command}") '
+      # Claim this window for the folder so a later `claude` from outside
+      # rejoins this tab instead of opening a duplicate.
+      [[ -z "$cur_path" ]] && tmux set -w -t "$me" @agent_path "$PWD"
+      [[ -z "$(tmux show -w -t "$me" -v @created 2>/dev/null)" ]] && \
+        tmux set -w -t "$me" @created "$(date +%s)"
+      local i
+      for (( i = 2; i <= n; i++ )); do
+        tmux split-window -d -t "$me" -c "$PWD" "$run"
+        tmux select-layout -t "$me" tiled
+      done
+      [[ -n "${CLAUDE_TMUX_TEST:-}" ]] && return
+      "$hud/agent-launch.sh" "$bin" "$@" "${extra[@]}"
+      return
+    fi
   fi
 
-  local sess="${CLAUDE_TMUX_SESSION:-agents}"
-  local tag="${${PWD:t}//[^A-Za-z0-9_-]/-}"
   local win="" line
 
   if ! tmux has-session -t "=$sess" 2>/dev/null; then

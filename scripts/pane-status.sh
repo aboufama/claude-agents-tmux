@@ -1,8 +1,8 @@
 #!/bin/sh
 # Pane-border HUD for agent panes in the "agents" tmux session.
 # Every pane gets a deterministic procedural sigil (glyph pair + color
-# derived from its pane id), then the agent's model · effort:
-#   ⡵◈ Fable 5 · high
+# derived from its pane id), then the agent's model · effort · tokens:
+#   ⡵◈ Fable 5 · high · 12.4M tok
 # Claude Code already shows live working/thinking state inside the pane,
 # so the label stays static and minimal.
 # Usage: pane-status.sh <pane_id> <pane_current_command>
@@ -32,5 +32,15 @@ fi
 
 label="#[fg=colour$c]${MODEL:-claude}#[default]"
 [ -n "$EFFORT" ] && label="$label #[fg=colour245]· $EFFORT#[default]"
+
+# Cumulative session tokens for this agent, abbreviated (k / M / B).
+if [ -n "$TOKENS" ] && [ "$TOKENS" -gt 0 ] 2>/dev/null; then
+  tk="$(awk -v t="$TOKENS" 'BEGIN{
+    if (t >= 1e9)      printf "%.1fB", t/1e9
+    else if (t >= 1e6) printf "%.1fM", t/1e6
+    else if (t >= 1e3) printf "%.0fk", t/1e3
+    else               printf "%d", t }')"
+  label="$label #[fg=colour245]· $tk tok#[default]"
+fi
 
 printf '%s %s' "$sig" "$label"
