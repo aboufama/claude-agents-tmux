@@ -4,7 +4,10 @@
 # derived from its pane id), then the agent's model · effort:
 #   ⡵◈ Fable 5 · high
 # Claude Code already shows live working/thinking state inside the pane,
-# so the border stays static and minimal.
+# so the label stays static and minimal. Output is space-padded so tmux
+# never draws border-line characters on the label row — the label sits
+# on its own quiet row at the top of the pane instead of running
+# through a ─── line.
 # Usage: pane-status.sh <pane_id> <pane_current_command>
 pane="$1"; cmd="$2"
 f="$HOME/.claude/agents-tmux/state/$(printf '%s' "$pane" | tr -d '%').env"
@@ -19,18 +22,21 @@ set -- ◈ ◆ ✦ ❖ ▲ ⬢ ● ◉ ■ ✚ ◍ ⬡ ◐ ✱ ◮ ⬗
 i=$(( (h / 192) % 16 + 1 )); eval "g2=\${$i}"
 sig="#[fg=colour$c,bold]$g1$g2#[default]"
 
+# pad: blank out the rest of the row so no border line shows through
+pad="$(printf '%400s' '')"
+
 # A pane sitting at a shell is not an agent.
 case "$cmd" in
   zsh|bash|sh|fish|-zsh|-bash)
-    printf '%s #[dim]shell#[default]' "$sig"; exit 0 ;;
+    printf '%s #[dim]shell#[default]%s' "$sig" "$pad"; exit 0 ;;
 esac
 
 if [ ! -f "$f" ]; then
-  printf '%s #[fg=colour%s]starting…#[default]' "$sig" "$c"; exit 0
+  printf '%s #[fg=colour%s]starting…#[default]%s' "$sig" "$c" "$pad"; exit 0
 fi
 . "$f"
 
 label="#[fg=colour$c]${MODEL:-claude}#[default]"
 [ -n "$EFFORT" ] && label="$label #[fg=colour245]· $EFFORT#[default]"
 
-printf '%s %s' "$sig" "$label"
+printf '%s %s%s' "$sig" "$label" "$pad"

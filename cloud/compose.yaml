@@ -1,0 +1,15 @@
+services:
+  agents:
+    build:
+      context: ..
+      dockerfile: cloud/Dockerfile
+    container_name: claude-agents
+    init: true
+    restart: unless-stopped
+    volumes:
+      - claude-config:/root/.claude   # auth token + HUD scripts, survives rebuilds
+      - work:/root/work               # your repos / project folders
+
+volumes:
+  claude-config:
+  work:

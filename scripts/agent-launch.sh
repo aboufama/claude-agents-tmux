@@ -7,8 +7,12 @@
 # Usage: agent-launch.sh <claude-bin> [claude args...]
 bin="$1"; shift
 
+# caffeinate is macOS-only; on Linux hosts run the agent directly.
+awake=""
+command -v caffeinate >/dev/null 2>&1 && awake="caffeinate -ims"
+
 if [ -z "$TMUX_PANE" ]; then
-  exec caffeinate -ims "$bin" "$@"
+  exec $awake "$bin" "$@"
 fi
 
 h=$(printf '%s' "$TMUX_PANE" | cksum | cut -d' ' -f1)
@@ -37,4 +41,4 @@ if [ ! -f "$dir/$name.json" ]; then
 EOF
 fi
 
-exec caffeinate -ims "$bin" --settings "{\"theme\":\"custom:$name\"}" "$@"
+exec $awake "$bin" --settings "{\"theme\":\"custom:$name\"}" "$@"

@@ -10,15 +10,15 @@ One persistent tmux session (`agents`) holds all your agentic work:
 - **Every pane has a color identity.** The pane border shows a procedural sigil (a color + glyph pair hashed from the pane id, stable and unique per split) plus the agent's model and effort level — nothing more, so borders stay quiet. Claude Code's own spinner line inside the pane is themed to the same color, so you always know which agent you're looking at.
 
 ```
-┌───────────────────────────────────┬────────────────────────────────────┐
+  ⣷◆ Fable 5 · high                 │  ⡪✦ Fable 5 · high
 │                                   │                                    │
 │  agent 1                          │  agent 2                           │
 │                                   │                                    │
-└ ⣷◆ Fable 5 · high ────────────────┴ ⡪✦ Fable 5 · high ─────────────────┘
+└───────────────────────────────────┴────────────────────────────────────┘
   1 game-engine 2d4h   2 website 3h   3 api 41m
 ```
 
-The HUD sits on each pane's *bottom* border, so it's always fully inside the terminal window — never clipped by the top edge or rounded corners.
+Each label sits on its own quiet row at the top of its pane — inside the window, not embedded in a ─── border line — so nothing ever runs through or gets clipped by the frame.
 
 Agents run under `caffeinate`, so your Mac won't idle-sleep while they work, and they survive closed terminal windows, dropped SSH, and wifi blips — reattach by typing `claude` again in the same folder.
 
@@ -47,6 +47,44 @@ Then open a new terminal (or `source ~/.zshrc`) and run `claude`.
 | `claude -p ...`, `claude mcp`, pipes | Pass through untouched, no tmux |
 
 Handy tmux keys: `Ctrl-b z` zoom a pane full-screen, `Ctrl-b d` detach (agents keep running), `Ctrl-b n`/`p` next/previous tab.
+
+## Cloud mode — agents that survive your laptop
+
+Everything above runs on your Mac, which means agents stall the moment the laptop sleeps or drops off wifi. Cloud mode moves the whole `agents` session to an always-on host; your laptop becomes a detachable window into it. Close the lid mid-task, reopen an hour later, type `claude` — the agents never stopped.
+
+Point the wrapper at your host once:
+
+```sh
+echo 'user@your-host' > ~/.claude/agents-tmux/remote
+```
+
+From then on, `claude` in any local folder opens that folder's tab in the **remote** agents session over SSH (the local folder *name* maps to `~/work/<name>` on the host — keep your repos cloned there). `claude 3` works the same way. Wifi drop = tmux detach on the server; nothing dies. `CLAUDE_AGENTS_LOCAL=1 claude` forces a local session when you want one.
+
+### Host option A — bare VPS (simplest)
+
+Any $5 VM (Hetzner, DigitalOcean, EC2…):
+
+```sh
+ssh user@your-host
+git clone https://github.com/aboufama/claude-agents-tmux && ./claude-agents-tmux/install.sh
+claude setup-token        # authenticate once (needs a Claude subscription)
+mkdir -p ~/work && cd ~/work && git clone <your repos>
+```
+
+### Host option B — Docker container
+
+The `cloud/` directory ships a ready image (Debian + zsh + tmux + Claude Code + this setup):
+
+```sh
+ssh user@your-host          # any machine with Docker
+git clone https://github.com/aboufama/claude-agents-tmux && cd claude-agents-tmux/cloud
+docker compose up -d --build
+docker exec -it claude-agents claude setup-token    # authenticate once
+```
+
+Then on your laptop: `echo 'user@your-host docker' > ~/.claude/agents-tmux/remote`. The wrapper attaches through `docker exec` automatically. Auth and workspace live in named volumes (`claude-config`, `work`), so they survive image rebuilds and host reboots (`restart: unless-stopped`).
+
+For flaky links, [mosh](https://mosh.org) instead of ssh makes reattaching instant, and for repo-scoped tasks with zero infrastructure, [Claude Code on the web](https://claude.ai/code) runs sessions in Anthropic-managed cloud sandboxes.
 
 ## Requirements & caveats
 
