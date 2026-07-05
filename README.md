@@ -4,13 +4,13 @@ A tmux mission-control setup for running many [Claude Code](https://claude.com/c
 
 One persistent tmux session (`agents`) holds all your agentic work:
 
-- **Tab = folder.** Typing `claude` in any project opens (or rejoins) that folder's tab in the `agents` session. New folder → new tab. Same folder → same tab, same running agents.
+- **Tab = folder, always exactly one.** Typing `claude` in any project opens (or rejoins) that folder's tab in the `agents` session. New folder → new tab. Same folder → same tab, same running agents. If duplicate tabs for one folder ever appear (e.g. two `claude`s racing), they're automatically merged back into one.
 - **Pane = agent.** `claude 4` gives the current folder's tab four agent panes in a tiled layout. Inside tmux, `claude 3` splits the current window into three agents.
 - **Tabs show their age.** Each tab's running time is rendered in the status bar — dim under a day, amber at 1–3 days, red past 3 days, so long-forgotten agents stand out.
-- **Every pane has a live HUD.** The pane border shows a procedural sigil (a color + glyph pair hashed from the pane id, stable and unique per split), the agent's model and effort level, and a live state: an animated spinner while the agent is working, or `idle 24m · $1.10` when it's quiet.
+- **Every pane has a color identity.** The pane border shows a procedural sigil (a color + glyph pair hashed from the pane id, stable and unique per split) plus the agent's model and effort level — nothing more, so borders stay quiet. Claude Code's own spinner line inside the pane is themed to the same color, so you always know which agent you're looking at.
 
 ```
-┌ ⣷◆ Fable 5 · high ⠹ working ──────┬ ⡪✦ Fable 5 · high idle 24m · $1.10 ┐
+┌ ⣷◆ Fable 5 · high ────────────────┬ ⡪✦ Fable 5 · high ─────────────────┐
 │                                   │                                    │
 │  agent 1                          │  agent 2                           │
 │                                   │                                    │
@@ -22,20 +22,15 @@ Agents run under `caffeinate`, so your Mac won't idle-sleep while they work, and
 
 ## Install
 
+One command:
+
 ```sh
-./install.sh
+git clone https://github.com/aboufama/claude-agents-tmux ~/.claude-agents-tmux && ~/.claude-agents-tmux/install.sh
 ```
 
-This copies the scripts to `~/.claude/agents-tmux/`, appends a `source` line for `claude-agents.zsh` to your `~/.zshrc`, and prints the `statusLine` snippet to add to `~/.claude/settings.json`:
+(Or clone anywhere you like and run `./install.sh` from the checkout.)
 
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "~/.claude/agents-tmux/statusline.sh"
-  }
-}
-```
+The installer copies the scripts to `~/.claude/agents-tmux/`, appends a `source` line for `claude-agents.zsh` to your `~/.zshrc`, and wires the `statusLine` hook into `~/.claude/settings.json` automatically (your previous settings file is backed up as `settings.json.bak`). If `python3` isn't available it prints the snippet to add by hand instead.
 
 Then open a new terminal (or `source ~/.zshrc`) and run `claude`.
 
@@ -53,6 +48,7 @@ Handy tmux keys: `Ctrl-b z` zoom a pane full-screen, `Ctrl-b d` detach (agents k
 
 ## Requirements & caveats
 
-- tmux ≥ 3.2, zsh, macOS (`caffeinate` is macOS-only — on Linux, remove it from `claude-agents.zsh` or swap in `systemd-inhibit`).
+- tmux ≥ 3.2, zsh, macOS (`caffeinate` is macOS-only — on Linux, remove it from `scripts/agent-launch.sh` or swap in `systemd-inhibit`).
 - **The wrapper auto-appends `--dangerously-skip-permissions` to interactive agents.** That is the point of the setup — unattended agents that never stall on a prompt — but it means agents run without permission guardrails. Remove the `extra=(--dangerously-skip-permissions)` line in `claude-agents.zsh` if you don't want that.
+- Per-pane spinner colors work by dropping tiny theme files in `~/.claude/themes/` (named `agents-pane-*`) and passing `--settings '{"theme":"custom:..."}'` to each agent; your global theme is untouched.
 - To survive a closed laptop lid you additionally need `sudo pmset -a disablesleep 1`.

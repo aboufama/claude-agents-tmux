@@ -2,8 +2,9 @@
 # `claude`    → open (or rejoin) the "agents" session at this folder's tab
 # `claude 3`  → this folder's tab has 3 agent panes (adds splits as needed)
 # Inside tmux → the current pane becomes an agent; `claude 3` adds 2 siblings
-# Tabs show a running-age badge (amber >1d, red >3d). Every agent pane's
-# border shows a procedural sigil + model · effort + live working/idle state,
+# One tab per folder, always: duplicate tabs for the same path get merged
+# back into the first one. Tabs show a running-age badge (amber >1d, red >3d).
+# Every agent pane's border shows a procedural sigil + model · effort,
 # fed by the Claude Code statusLine hook (~/.claude/agents-tmux/).
 # Agents run under caffeinate and survive closed terminals / wifi drops.
 claude() {
@@ -32,32 +33,42 @@ claude() {
   local -a extra
   [[ " $* " != *" --dangerously-skip-permissions "* ]] && extra=(--dangerously-skip-permissions)
   local -a qargs; qargs=("${(q)@}" "${(q)extra[@]}")
-  local run="caffeinate -ims $bin $qargs"
   local hud="$HOME/.claude/agents-tmux"
+  # agent-launch.sh matches the Claude Code spinner color to the pane's
+  # sigil and runs the agent under caffeinate.
+  local run="$hud/agent-launch.sh $bin $qargs"
 
   # Inside tmux: this pane becomes an agent; a count adds sibling panes.
   if [[ -n "$TMUX" ]]; then
+    tmux set -w pane-border-status top
+    tmux set -w pane-border-format \
+      ' #(exec '"$hud"'/pane-status.sh "#{pane_id}" "#{pane_current_command}") '
+    # Claim this window for the folder so a later `claude` from outside
+    # rejoins this tab instead of opening a duplicate.
+    [[ -z "$(tmux show -w -v @agent_path 2>/dev/null)" ]] && \
+      tmux set -w @agent_path "$PWD"
+    [[ -z "$(tmux show -w -v @created 2>/dev/null)" ]] && \
+      tmux set -w @created "$(date +%s)"
     local i
     for (( i = 2; i <= n; i++ )); do
       tmux split-window -d -c "$PWD" "$run"
       tmux select-layout tiled
     done
     [[ -n "${CLAUDE_TMUX_TEST:-}" ]] && return
-    caffeinate -ims "$bin" "$@" "${extra[@]}"
+    "$hud/agent-launch.sh" "$bin" "$@" "${extra[@]}"
     return
   fi
 
-  local sess=agents
+  local sess="${CLAUDE_TMUX_SESSION:-agents}"
   local tag="${${PWD:t}//[^A-Za-z0-9_-]/-}"
   local win="" line
 
   if ! tmux has-session -t "=$sess" 2>/dev/null; then
+    # Fresh session → no live agents; sweep HUD state left by dead panes.
+    command find "$hud/state" -name '*.env' -mmin +120 -delete 2>/dev/null
     win="$(tmux new-session -d -P -F '#{window_id}' -x 250 -y 80 -s "$sess" -n "$tag" -c "$PWD" "$run")"
     tmux set -t "$sess" status-interval 1
-    tmux set -t "$sess" window-status-format \
-      ' #I #W #(exec '"$hud"'/tab-age.sh "#{@created}") '
-    tmux set -t "$sess" window-status-current-format \
-      '#[bold] #I #W#{?window_zoomed_flag, +Z,} #(exec '"$hud"'/tab-age.sh "#{@created}") '
+    tmux set -t "$sess" mouse on
   else
     # Same folder → same tab: find it by the path recorded on the window.
     while IFS= read -r line; do
@@ -66,10 +77,28 @@ claude() {
     [[ -z "$win" ]] && win="$(tmux new-window -t "$sess" -P -F '#{window_id}' -n "$tag" -c "$PWD" "$run")"
   fi
 
+  # One tab per folder: absorb any duplicate tabs for this path into $win.
+  # (Duplicates can appear if two `claude`s race to create the tab.)
+  local other pane
+  while IFS= read -r line; do
+    other="${line%%$'\t'*}"
+    [[ "$other" == "$win" || "${line#*$'\t'}" != "$PWD" ]] && continue
+    for pane in $(tmux list-panes -t "$other" -F '#{pane_id}'); do
+      tmux join-pane -d -s "$pane" -t "$win" 2>/dev/null
+    done
+    tmux select-layout -t "$win" tiled
+  done < <(tmux list-windows -t "$sess" -F $'#{window_id}\t#{@agent_path}')
+
   # Window bookkeeping (idempotent; @created only stamped once).
   [[ -z "$(tmux show -w -t "$win" -v @created 2>/dev/null)" ]] && \
     tmux set -w -t "$win" @created "$(date +%s)"
   tmux set -w -t "$win" @agent_path "$PWD"
+  # Window options only stick per-window in tmux 3.x, so set them here
+  # (runs for every window) rather than once on the session.
+  tmux set -w -t "$win" window-status-format \
+    ' #I #W #(exec '"$hud"'/tab-age.sh "#{@created}") '
+  tmux set -w -t "$win" window-status-current-format \
+    '#[bold] #I #W#{?window_zoomed_flag, +Z,} #(exec '"$hud"'/tab-age.sh "#{@created}") '
   tmux set -w -t "$win" pane-border-status top
   tmux set -w -t "$win" pane-border-format \
     ' #(exec '"$hud"'/pane-status.sh "#{pane_id}" "#{pane_current_command}") '

@@ -1,9 +1,9 @@
 #!/bin/sh
 # Claude Code statusLine hook.
-# 1) Renders the status line inside Claude Code itself.
+# 1) Renders the status line inside Claude Code itself (outside tmux).
 # 2) Drops a per-tmux-pane state file that the tmux pane-border HUD
-#    (pane-status.sh) reads, so every split shows its agent's model,
-#    effort, and live working/idle state.
+#    (pane-status.sh) reads, so every split shows its agent's model
+#    and effort level.
 input="$(cat)"
 
 pick() { printf '%s' "$input" | sed -n "s/.*$1.*/\\1/p" | head -1; }
@@ -13,8 +13,6 @@ MODEL_ID="$(pick '"model" *: *{ *"id" *: *"\([^"]*\)"')"
 EFFORT="$(pick '"effort_level" *: *"\([^"]*\)"')"
 [ -z "$EFFORT" ] && EFFORT="$(pick '"effortLevel" *: *"\([^"]*\)"')"
 [ -z "$EFFORT" ] && EFFORT="$(pick '"effort" *: *"\([^"]*\)"')"
-COST="$(pick '"total_cost_usd" *: *\([0-9][0-9.]*\)')"
-DUR_MS="$(pick '"total_duration_ms" *: *\([0-9][0-9]*\)')"
 
 # Fallbacks from settings.json when the hook payload lacks them.
 S="$HOME/.claude/settings.json"
@@ -31,14 +29,12 @@ if [ -n "$TMUX_PANE" ]; then
     printf "MODEL='%s'\n" "$MODEL"
     printf "MODEL_ID='%s'\n" "$MODEL_ID"
     printf "EFFORT='%s'\n" "$EFFORT"
-    printf "COST='%s'\n" "$COST"
-    printf "DUR_MS='%s'\n" "$DUR_MS"
   } > "$pf.tmp" && mv "$pf.tmp" "$pf"
 fi
 
-# The line Claude Code displays.
+# Inside tmux the pane border already shows model · effort,
+# so stay silent there; only print when there's no border HUD.
+[ -n "$TMUX_PANE" ] && exit 0
 out="${MODEL:-claude}"
 [ -n "$EFFORT" ] && out="$out · $EFFORT"
-[ -n "$COST" ] && out="$out · \$$COST"
-[ -n "$DUR_MS" ] && out="$out · $(( DUR_MS / 60000 ))m"
 printf '%s' "$out"

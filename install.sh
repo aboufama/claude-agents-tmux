@@ -3,8 +3,14 @@ set -e
 here="$(cd "$(dirname "$0")" && pwd)"
 dest="$HOME/.claude/agents-tmux"
 
+command -v tmux >/dev/null 2>&1 || {
+  echo "tmux is required. Install it first:  brew install tmux" >&2
+  exit 1
+}
+
 mkdir -p "$dest"
-cp "$here/scripts/statusline.sh" "$here/scripts/pane-status.sh" "$here/scripts/tab-age.sh" "$dest/"
+cp "$here/scripts/statusline.sh" "$here/scripts/pane-status.sh" \
+   "$here/scripts/tab-age.sh" "$here/scripts/agent-launch.sh" "$dest/"
 chmod +x "$dest"/*.sh
 echo "installed scripts to $dest"
 
@@ -18,7 +24,34 @@ else
   echo "added source line to ~/.zshrc"
 fi
 
-cat <<'EOF'
+# Wire the statusLine hook into ~/.claude/settings.json (backing it up first).
+settings="$HOME/.claude/settings.json"
+merge() {
+  python3 - "$settings" <<'PY'
+import json, os, sys
+p = sys.argv[1]
+data = {}
+if os.path.exists(p):
+    with open(p) as f:
+        data = json.load(f)
+want = {"type": "command", "command": "~/.claude/agents-tmux/statusline.sh"}
+if data.get("statusLine") == want:
+    print("statusLine already configured in", p)
+    sys.exit(0)
+if os.path.exists(p):
+    os.replace(p, p + ".bak")
+data["statusLine"] = want
+with open(p, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+print("set statusLine in", p, "(previous file saved as settings.json.bak)")
+PY
+}
+if command -v python3 >/dev/null 2>&1 && merge; then
+  echo
+  echo "Done. Open a new terminal (or \`source ~/.zshrc\`) and run: claude"
+else
+  cat <<'EOF'
 
 Last step — add this to ~/.claude/settings.json (merge with existing keys):
 
@@ -29,3 +62,4 @@ Last step — add this to ~/.claude/settings.json (merge with existing keys):
 
 Then open a new terminal (or `source ~/.zshrc`) and run: claude
 EOF
+fi
