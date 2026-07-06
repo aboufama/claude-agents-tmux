@@ -4,8 +4,13 @@ here="$(cd "$(dirname "$0")" && pwd)"
 dest="$HOME/.claude/agents-tmux"
 
 command -v tmux >/dev/null 2>&1 || {
-  echo "tmux is required. Install it first:  brew install tmux" >&2
-  exit 1
+  if command -v brew >/dev/null 2>&1; then
+    echo "tmux not found — installing with Homebrew..."
+    brew install tmux
+  else
+    echo "tmux is required. Install it first:  brew install tmux" >&2
+    exit 1
+  fi
 }
 
 mkdir -p "$dest"

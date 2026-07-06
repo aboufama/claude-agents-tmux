@@ -24,6 +24,8 @@ Agents run under `caffeinate`, so your Mac won't idle-sleep while they work, and
 
 ## Install
 
+Requires [tmux](https://github.com/tmux/tmux) — on macOS the installer will `brew install tmux` for you if it's missing (or install it yourself first with `brew install tmux`).
+
 One command:
 
 ```sh
