@@ -1,5 +1,12 @@
 # claude-agents-tmux
 
+The important things this handles:
+
+- tmux gives you session permanence, and every folder you work with Claude in gets its own window — running `claude` either creates that folder's window or drops you back into it.
+- `claude 3` opens three permission-bypassed Claude terminals in a single root folder (three separate tmux panes in the same tab).
+- Standard tmux keybinds navigate and edit the interface.
+- Token count and model are shown for each session.
+
 ![Split terminal with multiple Claude Code agents running in tmux panes](assets/screenshot.png)
 
 A tmux mission-control setup for running many [Claude Code](https://claude.com/claude-code) agents at once.
