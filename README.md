@@ -1,5 +1,7 @@
 # claude-agents-tmux
 
+![Split terminal with multiple Claude Code agents running in tmux panes](assets/screenshot.png)
+
 A tmux mission-control setup for running many [Claude Code](https://claude.com/claude-code) agents at once.
 
 One persistent tmux session (`agents`) holds all your agentic work:
@@ -52,7 +54,7 @@ Then open a new terminal (or `source ~/.zshrc`) and run `claude`.
 
 Handy tmux keys: `Ctrl-b z` zoom a pane full-screen, `Ctrl-b d` detach (agents keep running), `Ctrl-b n`/`p` next/previous tab.
 
-## Cloud mode — agents that survive your laptop
+## Cloud mode
 
 Everything above runs on your Mac, which means agents stall the moment the laptop sleeps or drops off wifi. Cloud mode moves the whole `agents` session to an always-on host; your laptop becomes a detachable window into it. Close the lid mid-task, reopen an hour later, type `claude` — the agents never stopped.
 
@@ -66,7 +68,7 @@ From then on, **remote is the default**: `claude` in any local folder opens that
 
 If the host doesn't answer within 3 seconds, `claude` prints a notice and opens a local session instead — it always opens *something*. `CLAUDE_AGENTS_LOCAL=1 claude` forces a local session on purpose.
 
-### Host option A — bare VPS (simplest)
+### Option A: bare VPS
 
 Any $5 VM (Hetzner, DigitalOcean, EC2…):
 
@@ -77,7 +79,7 @@ claude setup-token        # authenticate once (needs a Claude subscription)
 mkdir -p ~/work && cd ~/work && git clone <your repos>
 ```
 
-### Host option B — Docker container
+### Option B: Docker
 
 The `cloud/` directory ships a ready image (Debian + zsh + tmux + Claude Code + this setup):
 
@@ -92,7 +94,7 @@ Then on your laptop: `echo 'user@your-host docker' > ~/.claude/agents-tmux/remot
 
 For flaky links, [mosh](https://mosh.org) instead of ssh makes reattaching instant, and for repo-scoped tasks with zero infrastructure, [Claude Code on the web](https://claude.ai/code) runs sessions in Anthropic-managed cloud sandboxes.
 
-## Requirements & caveats
+## Caveats
 
 - tmux ≥ 3.2, zsh, macOS (`caffeinate` is macOS-only — on Linux, remove it from `scripts/agent-launch.sh` or swap in `systemd-inhibit`).
 - **The wrapper auto-appends `--dangerously-skip-permissions` to interactive agents.** That is the point of the setup — unattended agents that never stall on a prompt — but it means agents run without permission guardrails. Remove the `extra=(--dangerously-skip-permissions)` line in `claude-agents.zsh` if you don't want that.
