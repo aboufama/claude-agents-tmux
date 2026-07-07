@@ -6,7 +6,7 @@ The important things this handles:
 - `claude 3` opens three permission-bypassed Claude terminals in a single root folder (three separate tmux panes in the same tab).
 - Standard tmux keybinds navigate and edit the interface.
 - Token count and model are shown for each session.
-- Optional [herdr](https://herdr.dev) backend: a sidebar of all agents grouped by folder with live states, locally or attached to a cloud host.
+- [herdr](https://herdr.dev) backend, used automatically when installed: a sidebar of all agents grouped by folder with live states, locally or attached to a cloud host.
 
 ![Split terminal with multiple Claude Code agents running in tmux panes](assets/screenshot.png)
 
@@ -108,10 +108,9 @@ For flaky links, [mosh](https://mosh.org) instead of ssh makes reattaching insta
 
 ```sh
 brew install herdr jq
-echo herdr > ~/.claude/agents-tmux/backend
 ```
 
-That's it. `claude` and `claude 3` behave exactly as before: one workspace per folder, N running agents, exited agents drop their pane to a shell, idle shell panes get relaunched in place, trust dialogs pre-accepted. The herdr server keeps everything alive when you detach (`ctrl+b q`) or close the terminal, same as the tmux session did. Delete the `backend` file to go back to tmux.
+That's it: once herdr and jq are on your PATH, the wrapper uses the herdr backend automatically. `claude` and `claude 3` behave exactly as before: one workspace per folder, N running agents, exited agents drop their pane to a shell, idle shell panes get relaunched in place, trust dialogs pre-accepted. The herdr server keeps everything alive when you detach (`ctrl+b q`) or close the terminal, same as the tmux session did. To pin a backend explicitly, `echo tmux > ~/.claude/agents-tmux/backend` (or `echo herdr`), or set `CLAUDE_AGENTS_BACKEND` per call.
 
 ### Herdr in the cloud
 

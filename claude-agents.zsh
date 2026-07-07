@@ -132,11 +132,14 @@ claude() {
 
   local hud="$HOME/.claude/agents-tmux"
 
-  # Backend: tmux (default) or herdr. Pick herdr once with
-  #   echo herdr > ~/.claude/agents-tmux/backend
-  # or per-call with CLAUDE_AGENTS_BACKEND=herdr.
+  # Backend: herdr by default when installed (needs jq), tmux otherwise.
+  # Pin one with `echo tmux > ~/.claude/agents-tmux/backend` (or herdr),
+  # or per-call with CLAUDE_AGENTS_BACKEND=….
   local backend="${CLAUDE_AGENTS_BACKEND:-}"
   [[ -z "$backend" && -r "$hud/backend" ]] && backend="$(<"$hud/backend")"
+  if [[ -z "$backend" ]] && command -v herdr >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+    backend=herdr
+  fi
 
   # Inside a herdr pane, whatever the configured backend: the current
   # pane becomes an agent and `claude 3` adds 2 siblings — the mirror of
