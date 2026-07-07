@@ -23,12 +23,14 @@ HERDR_SESSION="${CLAUDE_AGENTS_SESSION:-agents}"
 export HERDR_SESSION
 unset HERDR_SOCKET_PATH 2>/dev/null || true
 
-# Server up? Start it headless and wait for the socket to answer.
-if ! herdr status server >/dev/null 2>&1; then
+# Server up? `herdr status server` exits 0 either way, so parse the
+# output. Start it headless and wait for the socket to answer.
+server_up() { herdr status server 2>/dev/null | grep -q '^status: running'; }
+if ! server_up; then
   nohup herdr server >/dev/null 2>&1 &
   i=0
-  while ! herdr status server >/dev/null 2>&1; do
-    i=$((i + 1)); [ "$i" -gt 50 ] && {
+  while ! server_up; do
+    i=$((i + 1)); [ "$i" -gt 100 ] && {
       echo "claude-agents: herdr server for session '$HERDR_SESSION' did not start" >&2; exit 1; }
     sleep 0.1
   done
