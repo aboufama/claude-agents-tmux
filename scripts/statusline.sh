@@ -98,7 +98,10 @@ fi
 
 # In a herdr pane, feed the same model · effort · tokens label into the
 # sidebar (custom status) and onto the pane box (title) — the herdr
-# equivalents of the tmux pane-border HUD.
+# equivalents of the tmux pane-border HUD. The box title gets the same
+# procedural sigil as the tmux border (two glyphs hashed from the pane
+# id, stable per pane); the sidebar stays plain, matching herdr's own
+# agent rows.
 if [ -n "${HERDR_PANE_ID:-}" ] && command -v herdr >/dev/null 2>&1; then
   hl="${MODEL:-claude}"
   [ -n "$EFFORT" ] && hl="$hl · $EFFORT"
@@ -111,8 +114,18 @@ if [ -n "${HERDR_PANE_ID:-}" ] && command -v herdr >/dev/null 2>&1; then
     hl="$hl · $tk tok"
     [ -n "$COST" ] && hl="$hl · \$$COST"
   fi
+  set -- $(printf '%s' "$HERDR_PANE_ID" | cksum); h=$1
+  set -- ⡪ ⣷ ⢝ ⡵ ⣫ ⢵ ⡿ ⣰ ⢾ ⣢ ⡮ ⣟ ⢜ ⡞ ⣳ ⢫
+  i=$(( h % 16 + 1 )); eval "g1=\${$i}"
+  set -- ◈ ◆ ✦ ❖ ▲ ⬢ ● ◉ ■ ✚ ◍ ⬡ ◐ ✱ ◮ ⬗
+  i=$(( (h / 16) % 16 + 1 )); eval "g2=\${$i}"
   herdr pane report-metadata "$HERDR_PANE_ID" --source claude-agents \
-    --custom-status "$hl" --title "$hl" >/dev/null 2>&1
+    --custom-status "$hl" --title "$g1$g2 $hl" >/dev/null 2>&1
+  # herdr draws no border box around a lone pane, so the in-pane
+  # statusline carries the full sigil + label; with splits it matches
+  # the box title above it.
+  printf '%s %s' "$g1$g2" "$hl"
+  exit 0
 fi
 
 # Inside tmux the pane border already shows model · effort,

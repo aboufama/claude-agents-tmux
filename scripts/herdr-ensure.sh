@@ -15,7 +15,7 @@ set -u
 n="$1"; dir="$2"; bin="$3"; shift 3
 
 command -v herdr >/dev/null 2>&1 || {
-  echo "claude-agents: herdr not found — install it first (brew install herdr)" >&2; exit 1; }
+  echo "claude-agents: herdr not found — install it first (curl -fsSL https://herdr.dev/install.sh | sh)" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || {
   echo "claude-agents: the herdr backend needs jq (brew install jq)" >&2; exit 1; }
 

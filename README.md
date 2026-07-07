@@ -107,7 +107,8 @@ For flaky links, [mosh](https://mosh.org) instead of ssh makes reattaching insta
 [Herdr](https://herdr.dev) is a terminal multiplexer built for coding agents, and it can replace tmux as the backend here. Same mental model, better instruments: workspace = folder, pane = agent, and herdr's sidebar lists every folder with its agents' live states (blocked / working / done / idle) rolled up per folder, so "which project needs me" is one glance instead of tab-cycling. The statusLine hook feeds each agent's model, effort, session tokens, and cost into the sidebar too.
 
 ```sh
-brew install herdr jq
+curl -fsSL https://herdr.dev/install.sh | sh   # herdr ≥ 0.7.2 (brew's is older and draws a focus marker on pane titles)
+brew install jq
 ```
 
 That's it: once herdr and jq are on your PATH, the wrapper uses the herdr backend automatically. `claude` and `claude 3` behave exactly as before: one workspace per folder, N running agents, exited agents drop their pane to a shell, idle shell panes get relaunched in place, trust dialogs pre-accepted. The herdr server keeps everything alive when you detach (`ctrl+b q`) or close the terminal, same as the tmux session did. To pin a backend explicitly, `echo tmux > ~/.claude/agents-tmux/backend` (or `echo herdr`), or set `CLAUDE_AGENTS_BACKEND` per call.

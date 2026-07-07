@@ -164,7 +164,7 @@ claude() {
       _claude_agents_herdr "$n" "$bin" "$@"
       return
     fi
-    print -u2 "claude-agents: backend is herdr but herdr isn't installed (brew install herdr) — using tmux"
+    print -u2 "claude-agents: backend is herdr but herdr isn't installed (curl -fsSL https://herdr.dev/install.sh | sh) — using tmux"
   fi
 
   # Remote mode: run the agents session on an always-on host so agents
