@@ -64,16 +64,21 @@ done
 ws="$(herdr pane list | jq -r --arg d "$dir" \
   '[.result.panes[] | select(.cwd == $d)][0].workspace_id // empty')"
 tag="$(basename "$dir" | tr -c 'A-Za-z0-9_-' '-' | sed 's/-*$//')"
+fresh=""
 if [ -z "$ws" ]; then
   ws="$(herdr workspace create --cwd "$dir" --label "$tag" --focus \
     | jq -r '.result.workspace.workspace_id')"
   [ -n "$ws" ] && [ "$ws" != null ] || {
     echo "claude-agents: failed to create herdr workspace for $dir" >&2; exit 1; }
+  fresh=1
 else
   herdr workspace focus "$ws" >/dev/null
 fi
 
 # Count running agents; collect idle shell panes for relaunch-in-place.
+# A just-created workspace's initial pane hasn't started its shell yet,
+# so process-info would miss it — treat all panes of a fresh workspace
+# as idle instead of scanning.
 self="${CLAUDE_AGENTS_SELF_PANE:-}"
 agents="$(herdr agent list | jq -r --arg w "$ws" \
   '[.result.agents[] | select(.workspace_id == $w) | .pane_id] | join(" ")')"
@@ -82,6 +87,7 @@ idle=""
 for p in $(herdr pane list --workspace "$ws" | jq -r '.result.panes[].pane_id'); do
   [ "$p" = "$self" ] && { have=$((have + 1)); continue; }
   case " $agents " in *" $p "*) continue ;; esac
+  if [ -n "$fresh" ]; then idle="$idle $p"; continue; fi
   fg="$(herdr pane process-info --pane "$p" \
     | jq -r '.result.process_info.foreground_processes[0].name // empty')"
   case "$fg" in zsh|bash|sh|fish|-zsh|-bash) idle="$idle $p" ;; esac
