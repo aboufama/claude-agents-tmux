@@ -33,7 +33,9 @@ fi
 label="#[fg=colour$c]${MODEL:-claude}#[default]"
 [ -n "$EFFORT" ] && label="$label #[fg=colour245]· $EFFORT#[default]"
 
-# Cumulative session tokens for this agent, abbreviated (k / M / B).
+# Fresh session tokens (input + output + cache writes; cache reads are
+# excluded — they re-read the whole context on every call and would dwarf
+# the number) plus the API-price cost across all four billing categories.
 if [ -n "$TOKENS" ] && [ "$TOKENS" -gt 0 ] 2>/dev/null; then
   tk="$(awk -v t="$TOKENS" 'BEGIN{
     if (t >= 1e9)      printf "%.1fB", t/1e9
@@ -41,6 +43,7 @@ if [ -n "$TOKENS" ] && [ "$TOKENS" -gt 0 ] 2>/dev/null; then
     else if (t >= 1e3) printf "%.0fk", t/1e3
     else               printf "%d", t }')"
   label="$label #[fg=colour245]· $tk tok#[default]"
+  [ -n "${COST:-}" ] && label="$label #[fg=colour245]· \$$COST#[default]"
 fi
 
 printf '%s %s' "$sig" "$label"

@@ -56,6 +56,57 @@ tmux() {
   command tmux "$@"
 }
 
+# herdr backend: same model, different multiplexer. Workspace = folder,
+# pane = agent, and herdr's sidebar rolls agent state (blocked / working /
+# done / idle) up per folder, so the "which project needs me" view is
+# built in. scripts/herdr-ensure.sh does the workspace/pane bookkeeping on
+# whichever machine hosts the herdr server; this function decides where
+# that is (local, or the configured remote host) and attaches.
+_claude_agents_herdr() {
+  emulate -L zsh
+  local n="$1" bin="$2"; shift 2
+  local hud="$HOME/.claude/agents-tmux"
+  local sess="${CLAUDE_TMUX_SESSION:-agents}"
+
+  # Same remote config as the tmux backend: ~/.claude/agents-tmux/remote
+  # or CLAUDE_AGENTS_HOST; local folder NAME maps to ~/work/<name> on the
+  # host; CLAUDE_AGENTS_LOCAL=1 forces a local session.
+  local rconf="${CLAUDE_AGENTS_HOST:-}"
+  [[ -z "$rconf" && -r "$hud/remote" ]] && rconf="$(<"$hud/remote")"
+  if [[ -n "$rconf" && -z "${SSH_CONNECTION:-}" && -z "${CLAUDE_AGENTS_LOCAL:-}" ]]; then
+    local rhost="${rconf%% *}" rmode="${rconf#* }" rtag="${${PWD:t}//[^A-Za-z0-9_-]/-}"
+    if [[ "$rmode" == "docker" ]]; then
+      # A thin client can't reach inside a container, so run the whole
+      # herdr UI in the container over ssh; the wrapper there (with
+      # backend=herdr set in the image) does the rest.
+      local rcmd="docker exec -it claude-agents zsh -ilc 'mkdir -p ~/work/$rtag && cd ~/work/$rtag && claude $n'"
+      if [[ -n "${CLAUDE_TMUX_TEST:-}" ]]; then print -r -- "ssh -t $rhost $rcmd"; return; fi
+      if ssh -o BatchMode=yes -o ConnectTimeout=3 "$rhost" true 2>/dev/null; then
+        ssh -t "$rhost" "$rcmd"; return
+      fi
+      print -u2 "claude-agents: remote $rhost unreachable — opening local session"
+    else
+      if [[ -n "${CLAUDE_TMUX_TEST:-}" ]]; then
+        print -r -- "herdr --remote $rhost --session $sess ($rtag x$n)"; return
+      fi
+      if ssh -o BatchMode=yes -o ConnectTimeout=3 "$rhost" true 2>/dev/null; then
+        # Set up the folder's workspace and agents server-side, then
+        # attach as a thin client: local keybindings, native clipboard,
+        # and herdr auto-installs its binary on the host if missing.
+        ssh "$rhost" "mkdir -p ~/work/$rtag && CLAUDE_AGENTS_SESSION=$sess ~/.claude/agents-tmux/herdr-ensure.sh $n ~/work/$rtag \"\$(command -v claude || echo \$HOME/.local/bin/claude)\"" >/dev/null 2>&1 || \
+          print -u2 "claude-agents: remote herdr setup failed — attaching anyway (is this repo installed on $rhost?)"
+        command herdr --remote "$rhost" --session "$sess"
+        return
+      fi
+      print -u2 "claude-agents: remote $rhost unreachable — opening local session"
+    fi
+  fi
+
+  if [[ -n "${CLAUDE_TMUX_TEST:-}" ]]; then print -r -- "herdr-local $sess $n $PWD"; return; fi
+  CLAUDE_AGENTS_SESSION="$sess" "$hud/herdr-ensure.sh" "$n" "$PWD" "$bin" "$@" >/dev/null || return
+  command herdr --session "$sess"
+}
+
 claude() {
   emulate -L zsh
   local bin
@@ -77,6 +128,40 @@ claude() {
     n="$1"; shift
     (( n < 1 )) && n=1
     (( n > 12 )) && n=12
+  fi
+
+  local hud="$HOME/.claude/agents-tmux"
+
+  # Backend: tmux (default) or herdr. Pick herdr once with
+  #   echo herdr > ~/.claude/agents-tmux/backend
+  # or per-call with CLAUDE_AGENTS_BACKEND=herdr.
+  local backend="${CLAUDE_AGENTS_BACKEND:-}"
+  [[ -z "$backend" && -r "$hud/backend" ]] && backend="$(<"$hud/backend")"
+
+  # Inside a herdr pane, whatever the configured backend: the current
+  # pane becomes an agent and `claude 3` adds 2 siblings — the mirror of
+  # the inside-tmux behavior below. Checked before anything else so a
+  # herdr pane that inherited a stale $TMUX never routes into tmux.
+  if [[ -n "${HERDR_PANE_ID:-}" ]]; then
+    local -a hextra
+    [[ " $* " != *" --dangerously-skip-permissions "* ]] && hextra=(--dangerously-skip-permissions)
+    [[ -n "${CLAUDE_TMUX_TEST:-}" ]] && { print -r -- "herdr-inside $n"; return }
+    if (( n > 1 )); then
+      CLAUDE_AGENTS_SELF_PANE="$HERDR_PANE_ID" \
+        "$hud/herdr-ensure.sh" "$n" "$PWD" "$bin" "$@" >/dev/null
+    else
+      _claude_agents_trust "$PWD"
+    fi
+    "$hud/agent-launch.sh" "$bin" "$@" "${hextra[@]}"
+    return
+  fi
+
+  if [[ "$backend" == "herdr" ]]; then
+    if command -v herdr >/dev/null 2>&1; then
+      _claude_agents_herdr "$n" "$bin" "$@"
+      return
+    fi
+    print -u2 "claude-agents: backend is herdr but herdr isn't installed (brew install herdr) — using tmux"
   fi
 
   # Remote mode: run the agents session on an always-on host so agents
@@ -102,7 +187,6 @@ claude() {
     print -u2 "claude-agents: remote $rhost unreachable — opening local session"
   fi
 
-  local hud="$HOME/.claude/agents-tmux"
   local sess="${CLAUDE_TMUX_SESSION:-agents}"
   local tag="${${PWD:t}//[^A-Za-z0-9_-]/-}"
 

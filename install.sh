@@ -15,7 +15,8 @@ command -v tmux >/dev/null 2>&1 || {
 
 mkdir -p "$dest"
 cp "$here/scripts/statusline.sh" "$here/scripts/pane-status.sh" \
-   "$here/scripts/tab-age.sh" "$here/scripts/agent-launch.sh" "$dest/"
+   "$here/scripts/tab-age.sh" "$here/scripts/agent-launch.sh" \
+   "$here/scripts/herdr-ensure.sh" "$dest/"
 chmod +x "$dest"/*.sh
 echo "installed scripts to $dest"
 

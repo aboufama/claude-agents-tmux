@@ -6,6 +6,9 @@ services:
     container_name: claude-agents
     init: true
     restart: unless-stopped
+    # environment:
+    #   - CLAUDE_AGENTS_BACKEND=herdr   # uncomment to use the herdr backend
+    #                                   # inside the container too
     volumes:
       - claude-config:/root/.claude   # auth token + HUD scripts, survives rebuilds
       - work:/root/work               # your repos / project folders
