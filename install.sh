@@ -3,14 +3,34 @@ set -e
 here="$(cd "$(dirname "$0")" && pwd)"
 dest="$HOME/.claude/agents-tmux"
 
-command -v tmux >/dev/null 2>&1 || {
+# Backends: herdr when installed (the wrapper picks it automatically),
+# tmux as the fallback. Set up both; at least one must end up usable.
+has() { command -v "$1" >/dev/null 2>&1; }
+
+if ! has herdr && ! [ -x "$HOME/.local/bin/herdr" ]; then
+  echo "herdr not found — installing (https://herdr.dev)..."
+  curl -fsSL https://herdr.dev/install.sh | sh || \
+    echo "herdr install failed; the wrapper will use tmux" >&2
+fi
+if ! has jq; then
+  if command -v brew >/dev/null 2>&1; then
+    echo "jq not found — installing with Homebrew..."
+    brew install jq
+  else
+    echo "jq not found; the herdr backend needs it, so the wrapper will use tmux until you install it" >&2
+  fi
+fi
+if ! has tmux; then
   if command -v brew >/dev/null 2>&1; then
     echo "tmux not found — installing with Homebrew..."
     brew install tmux
   else
-    echo "tmux is required. Install it first:  brew install tmux" >&2
-    exit 1
+    echo "tmux not found; skipping the fallback backend" >&2
   fi
+fi
+{ { has herdr || [ -x "$HOME/.local/bin/herdr" ]; } && has jq; } || has tmux || {
+  echo "no usable backend: install herdr + jq (curl -fsSL https://herdr.dev/install.sh | sh) or tmux" >&2
+  exit 1
 }
 
 mkdir -p "$dest"

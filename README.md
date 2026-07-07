@@ -1,25 +1,14 @@
 # claude-agents-tmux
 
+Mission control for running many [Claude Code](https://claude.com/claude-code) agents at once. One `claude` command turns every folder into a workspace full of agents, backed by [herdr](https://herdr.dev) when it's installed and plain tmux when it's not.
+
 The important things this handles:
 
-- tmux gives you session permanence, and every folder you work with Claude in gets its own window. Running `claude` either creates that folder's window or drops you back into it.
-- `claude 3` opens three permission-bypassed Claude terminals in a single root folder (three separate tmux panes in the same tab).
-- Standard tmux keybinds navigate and edit the interface.
-- Token count and model are shown for each session.
-- [herdr](https://herdr.dev) backend, used automatically when installed: a sidebar of all agents grouped by folder with live states, locally or attached to a cloud host.
-
-![Split terminal with multiple Claude Code agents running in tmux panes](assets/screenshot.png)
-
-A tmux mission-control setup for running many [Claude Code](https://claude.com/claude-code) agents at once.
-
-One persistent tmux session (`agents`) holds all your agentic work:
-
-- **Tab = folder, always exactly one.** Typing `claude` in any project opens (or rejoins) that folder's tab in the `agents` session, no matter where you type it: outside tmux, inside the agents session, or inside some other tmux session, you always land on that folder's tab. New folder → new tab. Same folder → same tab, same running agents. If duplicate tabs for one folder ever appear (e.g. two `claude`s racing), they're automatically merged back into one.
-- **Pane = agent.** `claude 4` gives the current folder's tab four *running* agents in a tiled layout. Inside your folder's own tab, `claude 3` turns the current pane into an agent plus two siblings. Idle shell panes are relaunched in place before any new splits are added.
-- **Exiting an agent never kills the pane.** Ctrl-C / `/exit` / a crash drops the pane to a normal shell in the same folder: type `claude` to relaunch, or `exit` to actually close the pane. Tabs are never locked to Claude.
-- **Tabs show their age.** Each tab's running time is rendered in the status bar: dim under a day, amber at 1–3 days, red past 3 days, so long-forgotten agents stand out.
-- **Every pane has a color identity.** The pane border shows a procedural sigil (a color + glyph pair hashed from the pane id, stable and unique per split) plus the agent's model, effort level, fresh session tokens (input + output + cache writes, so cache reads don't inflate the number), and the session's API-price cost (`· 843k tok · $2.80`), nothing more, so borders stay quiet. Claude Code's own spinner line inside the pane is themed to the same color, so you always know which agent you're looking at.
-- **No trust popups.** The wrapper pre-accepts Claude Code's "Do you trust the files in this folder?" dialog for the folder before spawning panes, so a burst of new agents doesn't stall on one prompt per pane. This covers the home directory too: Claude Code never saves an interactive acceptance for `~`, but it does honor a pre-seeded one, and the wrapper re-seeds on every launch.
+- One persistent session (`agents`) holds all your agentic work. Running `claude` either creates the current folder's workspace or drops you back into it, agents intact.
+- `claude 3` opens three permission-bypassed Claude agents side by side in a single root folder.
+- Every agent shows its model, effort level, fresh session tokens, and API-price cost.
+- With herdr installed (the installer sets it up), you also get a sidebar of every folder with each agent's live state (working / blocked / done / idle), locally or attached to a cloud host.
+- Agents survive closed terminal windows, dropped SSH, and wifi blips. Reattach by typing `claude` again.
 
 ```
 ┌ ⣷◆ Fable 5 · high ────────────────┬ ⡪✦ Fable 5 · high ─────────────────┐
@@ -30,11 +19,20 @@ One persistent tmux session (`agents`) holds all your agentic work:
   1 game-engine 2d4h   2 website 3h   3 api 41m
 ```
 
-Agents run under `caffeinate`, so your Mac won't idle-sleep while they work, and they survive closed terminal windows, dropped SSH, and wifi blips. Reattach by typing `claude` again in the same folder.
+## How it works
+
+The same mental model on both backends:
+
+- **Workspace = folder, always exactly one.** Typing `claude` in any project opens (or rejoins) that folder's workspace in the `agents` session, no matter where you type it. New folder → new workspace. Same folder → same workspace, same running agents. On tmux, duplicate tabs for one folder (e.g. two `claude`s racing) are automatically merged back into one.
+- **Pane = agent.** `claude 4` gives the current folder four *running* agents in a tiled layout. Inside the folder's own workspace, `claude 3` turns the current pane into an agent plus two siblings. Idle shell panes are relaunched in place before any new splits are added.
+- **Exiting an agent never kills the pane.** Ctrl-C / `/exit` / a crash drops the pane to a normal shell in the same folder: type `claude` to relaunch, or `exit` to actually close the pane.
+- **Every pane is labeled.** A procedural sigil (a glyph pair hashed from the pane id, stable and unique per split) plus the agent's model, effort level, fresh session tokens (input + output + cache writes, so cache reads don't inflate the number), and the session's API-price cost (`· 843k tok · $2.80`). On herdr this lives on the pane box title and, since a lone pane draws no box, on Claude Code's own status line inside the pane; the sidebar keeps herdr's plain agent rows. On tmux it lives on the pane border, colored, with Claude Code's spinner themed to match.
+- **No trust popups.** The wrapper pre-accepts Claude Code's "Do you trust the files in this folder?" dialog before spawning panes, so a burst of new agents doesn't stall on one prompt per pane. This covers the home directory too: Claude Code never saves an interactive acceptance for `~`, but it does honor a pre-seeded one, and the wrapper re-seeds on every launch.
+- **On herdr**, the sidebar lists every folder with its agents' live states rolled up per folder, so "which project needs me" is one glance instead of tab-cycling. **On tmux**, each folder tab shows its running age in the status bar (dim under a day, amber at 1–3 days, red past 3 days), so long-forgotten agents stand out.
+
+Agents run under `caffeinate`, so your Mac won't idle-sleep while they work.
 
 ## Install
-
-Requires [tmux](https://github.com/tmux/tmux). On macOS the installer will `brew install tmux` for you if it's missing (or install it yourself first with `brew install tmux`).
 
 One command:
 
@@ -44,27 +42,28 @@ git clone https://github.com/aboufama/claude-agents-tmux ~/.claude-agents-tmux &
 
 (Or clone anywhere you like and run `./install.sh` from the checkout.)
 
-The installer copies the scripts to `~/.claude/agents-tmux/`, appends a `source` line for `claude-agents.zsh` to your `~/.zshrc`, and wires the `statusLine` hook into `~/.claude/settings.json` automatically (your previous settings file is backed up as `settings.json.bak`). If `python3` isn't available it prints the snippet to add by hand instead.
+The installer copies the scripts to `~/.claude/agents-tmux/`, appends a `source` line for `claude-agents.zsh` to your `~/.zshrc`, and wires the `statusLine` hook into `~/.claude/settings.json` (your previous settings file is backed up as `settings.json.bak`). It also installs the backends if they're missing: herdr via the official installer (needs ≥ 0.7.2; Homebrew's is older and draws a focus marker on pane titles) plus `jq`, and tmux via Homebrew as the fallback.
 
 Then open a new terminal (or `source ~/.zshrc`) and run `claude`.
+
+The wrapper picks herdr automatically whenever `herdr` and `jq` are on your PATH, and tmux otherwise. To pin a backend explicitly, `echo tmux > ~/.claude/agents-tmux/backend` (or `echo herdr`), or set `CLAUDE_AGENTS_BACKEND` per call.
 
 ## Usage
 
 | Command | Effect |
 |---|---|
-| `claude` | Open/rejoin the `agents` session at this folder's tab |
-| `claude 4` | Ensure this folder's tab has 4 running agents |
-| `claude` (in this folder's tab) | Current pane becomes an agent |
-| `claude 3` (in this folder's tab) | Current pane becomes an agent + 2 sibling splits |
-| `claude` (any other tmux window/session) | Jumps to this folder's tab, creating it if needed |
-| `claude -p ...`, `claude mcp`, pipes | Pass through untouched, no tmux |
+| `claude` | Open/rejoin the `agents` session at this folder's workspace |
+| `claude 4` | Ensure this folder has 4 running agents |
+| `claude` (inside this folder's workspace) | Current pane becomes an agent |
+| `claude 3` (inside this folder's workspace) | Current pane becomes an agent + 2 sibling splits |
+| `claude -p ...`, `claude mcp`, pipes | Pass through untouched, no multiplexer |
 | `tmux` (bare, outside tmux) | Asks "open the agents manager?" `y` attaches to `agents`, anything else is stock tmux |
 
-Handy tmux keys: `Ctrl-b z` zoom a pane full-screen, `Ctrl-b d` detach (agents keep running), `Ctrl-b n`/`p` next/previous tab.
+The prefix key is `Ctrl-b` on both backends, so the muscle memory carries over: `z` zoom a pane full-screen, `n`/`p` next/previous tab, detach with `d` (tmux) or `q` (herdr). Agents keep running after detach.
 
 ## Cloud mode
 
-Everything above runs on your Mac, which means agents stall the moment the laptop sleeps or drops off wifi. Cloud mode moves the whole `agents` session to an always-on host; your laptop becomes a detachable window into it. Close the lid mid-task, reopen an hour later, type `claude`, and the agents never stopped.
+Everything above runs on your machine, which means agents stall the moment the laptop sleeps or drops off wifi. Cloud mode moves the whole `agents` session to an always-on host; your laptop becomes a detachable window into it. Close the lid mid-task, reopen an hour later, type `claude`, and the agents never stopped.
 
 Point the wrapper at your host once:
 
@@ -72,7 +71,9 @@ Point the wrapper at your host once:
 echo 'user@your-host' > ~/.claude/agents-tmux/remote
 ```
 
-From then on, **remote is the default**: `claude` in any local folder opens that folder's tab in the remote agents session over SSH (the local folder *name* maps to `~/work/<name>` on the host, so keep your repos cloned there). `claude 3` works the same way. Wifi drop = tmux detach on the server; nothing dies. The remote session marks itself with an amber `[remote]` tag next to the session name in the status bar, so you always know which side you're on.
+From then on, **remote is the default**: `claude` in any local folder opens that folder's workspace in the remote agents session (the local folder *name* maps to `~/work/<name>` on the host, so keep your repos cloned there). `claude 3` works the same way.
+
+With the herdr backend, the attach is herdr's thin client: you keep local keybindings and native clipboard while every agent runs on the host, and the remote sidebar shows *all* your folders and agents on that box. Wifi drop or closed lid detaches the client; the server and agents never notice. On tmux, the attach is a plain SSH session, and the remote session marks itself with an amber `[remote]` tag in the status bar so you always know which side you're on.
 
 If the host doesn't answer within 3 seconds, `claude` prints a notice and opens a local session instead; it always opens *something*. `CLAUDE_AGENTS_LOCAL=1 claude` forces a local session on purpose.
 
@@ -89,7 +90,7 @@ mkdir -p ~/work && cd ~/work && git clone <your repos>
 
 ### Option B: Docker
 
-The `cloud/` directory ships a ready image (Debian + zsh + tmux + Claude Code + this setup):
+The `cloud/` directory ships a ready image (Debian + zsh + Claude Code + herdr + tmux + this setup):
 
 ```sh
 ssh user@your-host          # any machine with Docker
@@ -98,47 +99,13 @@ docker compose up -d --build
 docker exec -it claude-agents claude setup-token    # authenticate once
 ```
 
-Then on your laptop: `echo 'user@your-host docker' > ~/.claude/agents-tmux/remote`. The wrapper attaches through `docker exec` automatically. Auth and workspace live in named volumes (`claude-config`, `work`), so they survive image rebuilds and host reboots (`restart: unless-stopped`).
+Then on your laptop: `echo 'user@your-host docker' > ~/.claude/agents-tmux/remote`. The wrapper attaches through `docker exec` automatically; herdr's thin client can't reach inside a container, so the full herdr UI runs there over SSH instead. Auth and workspace live in named volumes (`claude-config`, `work`), so they survive image rebuilds and host reboots (`restart: unless-stopped`).
 
 For flaky links, [mosh](https://mosh.org) instead of ssh makes reattaching instant, and for repo-scoped tasks with zero infrastructure, [Claude Code on the web](https://claude.ai/code) runs sessions in Anthropic-managed cloud sandboxes.
 
-## Herdr backend (sidebar + cloud)
-
-[Herdr](https://herdr.dev) is a terminal multiplexer built for coding agents, and it can replace tmux as the backend here. Same mental model, better instruments: workspace = folder, pane = agent, and herdr's sidebar lists every folder with its agents' live states (blocked / working / done / idle) rolled up per folder, so "which project needs me" is one glance instead of tab-cycling. The statusLine hook feeds each agent's model, effort, session tokens, and cost into the sidebar too.
-
-```sh
-curl -fsSL https://herdr.dev/install.sh | sh   # herdr ≥ 0.7.2 (brew's is older and draws a focus marker on pane titles)
-brew install jq
-```
-
-That's it: once herdr and jq are on your PATH, the wrapper uses the herdr backend automatically. `claude` and `claude 3` behave exactly as before: one workspace per folder, N running agents, exited agents drop their pane to a shell, idle shell panes get relaunched in place, trust dialogs pre-accepted. The herdr server keeps everything alive when you detach (`ctrl+b q`) or close the terminal, same as the tmux session did. To pin a backend explicitly, `echo tmux > ~/.claude/agents-tmux/backend` (or `echo herdr`), or set `CLAUDE_AGENTS_BACKEND` per call.
-
-### Herdr in the cloud
-
-Cloud mode works with the same `remote` file, but the attach gets nicer: instead of a raw ssh terminal, herdr's thin client attaches natively, so you keep local keybindings and clipboard while every agent runs on the always-on host.
-
-```sh
-ssh user@your-host
-git clone https://github.com/aboufama/claude-agents-tmux && ./claude-agents-tmux/install.sh
-curl -fsSL https://herdr.dev/install.sh | sh     # herdr on the host
-claude setup-token
-mkdir -p ~/work && cd ~/work && git clone <your repos>
-```
-
-Then locally, as before:
-
-```sh
-echo 'user@your-host' > ~/.claude/agents-tmux/remote
-```
-
-With the backend set to herdr, `claude 3` in any local folder now sets up `~/work/<name>` on the host with 3 agents and attaches the thin client, with the remote sidebar showing *all* your folders and agents on that box. Wifi drop or closed lid detaches the client; the server and agents never notice. If the host is unreachable, `claude` falls back to a local herdr session, and `CLAUDE_AGENTS_LOCAL=1 claude` forces one.
-
-For the Docker route, the `cloud/` image ships with herdr installed: uncomment `CLAUDE_AGENTS_BACKEND=herdr` in `cloud/compose.yaml` and the container uses the herdr backend. The thin client can't reach inside a container, so `claude` attaches the full herdr UI over ssh there instead.
-
 ## Caveats
 
-- tmux ≥ 3.2, zsh, macOS (`caffeinate` is macOS-only; on Linux, remove it from `scripts/agent-launch.sh` or swap in `systemd-inhibit`).
+- zsh, macOS or Linux. `caffeinate` is macOS-only; on Linux, remove it from `scripts/agent-launch.sh` or swap in `systemd-inhibit`. The tmux fallback needs tmux ≥ 3.2.
 - **The wrapper auto-appends `--dangerously-skip-permissions` to interactive agents.** That is the point of the setup (unattended agents that never stall on a prompt), but it means agents run without permission guardrails. Remove the `extra=(--dangerously-skip-permissions)` line in `claude-agents.zsh` if you don't want that.
-- Per-pane spinner colors work by dropping tiny theme files in `~/.claude/themes/` (named `agents-pane-*`) and passing `--settings '{"theme":"custom:..."}'` to each agent; your global theme is untouched.
+- Per-pane spinner colors (tmux backend) work by dropping tiny theme files in `~/.claude/themes/` (named `agents-pane-*`) and passing `--settings '{"theme":"custom:..."}'` to each agent; your global theme is untouched.
 - To survive a closed laptop lid you additionally need `sudo pmset -a disablesleep 1`.
-- The herdr backend needs `jq`, and herdr's prefix key is also `Ctrl-b`, so the muscle memory (`z` zoom, `q` detach, `n`/`p` tabs) carries over.

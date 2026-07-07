@@ -7,8 +7,8 @@ services:
     init: true
     restart: unless-stopped
     # environment:
-    #   - CLAUDE_AGENTS_BACKEND=herdr   # uncomment to use the herdr backend
-    #                                   # inside the container too
+    #   - CLAUDE_AGENTS_BACKEND=tmux    # the image ships herdr, so the wrapper
+    #                                   # uses it by default; uncomment to pin tmux
     volumes:
       - claude-config:/root/.claude   # auth token + HUD scripts, survives rebuilds
       - work:/root/work               # your repos / project folders
