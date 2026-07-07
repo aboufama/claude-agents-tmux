@@ -97,7 +97,8 @@ if [ -n "$PANE" ]; then
 fi
 
 # In a herdr pane, feed the same model · effort · tokens label into the
-# sidebar next to the agent's state (tmux shows it on the pane border).
+# sidebar (custom status) and onto the pane box (title) — the herdr
+# equivalents of the tmux pane-border HUD.
 if [ -n "${HERDR_PANE_ID:-}" ] && command -v herdr >/dev/null 2>&1; then
   hl="${MODEL:-claude}"
   [ -n "$EFFORT" ] && hl="$hl · $EFFORT"
@@ -111,7 +112,7 @@ if [ -n "${HERDR_PANE_ID:-}" ] && command -v herdr >/dev/null 2>&1; then
     [ -n "$COST" ] && hl="$hl · \$$COST"
   fi
   herdr pane report-metadata "$HERDR_PANE_ID" --source claude-agents \
-    --custom-status "$hl" >/dev/null 2>&1
+    --custom-status "$hl" --title "$hl" >/dev/null 2>&1
 fi
 
 # Inside tmux the pane border already shows model · effort,
